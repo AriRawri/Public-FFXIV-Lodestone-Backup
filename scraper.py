@@ -16,10 +16,7 @@ async def scrape():
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--disable-gpu", "--no-sandbox"]
-        )
+        browser = await p.firefox.launch(headless=True)
         context = await browser.new_context()
 
         # Start tracing
@@ -153,3 +150,4 @@ async def scrape():
         await browser.close()
 
 asyncio.run(scrape())
+
