@@ -41,6 +41,7 @@ async def scrape():
 
         page = await context.new_page()
         await page.goto(URL)
+        await page.wait_for_timeout(2000)  # give JS time to render
 
         # Handle cookie prompt
         try:
@@ -52,9 +53,15 @@ async def scrape():
         except:
             print("🍪 No cookie prompt detected")
 
-        # Wait for at least one player row
+        # Wait for the table container first
         try:
-            await page.wait_for_selector(".cc-ranking__table .cc-ranking_result_name", timeout=30000)
+            await page.wait_for_selector(".cc-ranking__table", timeout=45000)
+            # small scroll to trigger lazy loading
+            await page.evaluate("window.scrollBy(0, 100);")
+            # wait until at least one row exists
+            await page.wait_for_function("""
+            () => document.querySelectorAll('.cc-ranking__table > div').length > 0
+            """, timeout=45000)
             print("✅ Ranking table detected")
         except:
             print("⚠️ Table not found. Saving trace and exiting.")
