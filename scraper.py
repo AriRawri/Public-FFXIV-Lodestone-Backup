@@ -16,19 +16,9 @@ async def scrape():
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)  # set True for automation
+        browser = await p.chromium.launch(headless=True)  # set True for automation
         page = await browser.new_page()
         await page.goto(URL)
-
-        # Handle cookie prompt
-        try:
-            accept_btn = page.locator("button:has-text('Accept')")
-            if await accept_btn.count() > 0:
-                await accept_btn.click()
-                print("🍪 Cookie consent accepted")
-                await page.wait_for_timeout(500)
-        except:
-            print("🍪 No cookie prompt detected")
 
         # Wait for table
         try:
@@ -142,4 +132,5 @@ async def scrape():
         await browser.close()
 
 asyncio.run(scrape())
+
 
