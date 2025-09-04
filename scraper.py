@@ -16,9 +16,19 @@ async def scrape():
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)  # set True for automation
+        browser = await p.chromium.launch(headless=False)  # set True for automation
         page = await browser.new_page()
         await page.goto(URL)
+
+        # Handle cookie prompt
+        try:
+            accept_btn = page.locator("button:has-text('Accept')")
+            if await accept_btn.count() > 0:
+                await accept_btn.click()
+                print("🍪 Cookie consent accepted")
+                await page.wait_for_timeout(500)
+        except:
+            print("🍪 No cookie prompt detected")
 
         # Wait for table
         try:
@@ -68,22 +78,21 @@ async def scrape():
                 # Combined string with name + world
                 full_name_world = clean_text(await row.locator(".name").inner_text())
 
-                # Split into parts: first two = name, rest = world + datacenter
+                # Split into parts for Name and World/Datacenter
                 parts = full_name_world.split()
                 if len(parts) >= 3:
                     name = " ".join(parts[:2])        # first + last name
-                    world_with_dc = " ".join(parts[2:])  # e.g. "Mateus [Crystal]"
+                    world_and_dc = " ".join(parts[2:])  # e.g., "Mateus [Crystal]"
                 else:
                     name = full_name_world
-                    world_with_dc = ""
+                    world_and_dc = ""
 
                 # Extract world and datacenter from "World [Datacenter]"
-                if "[" in world_with_dc and "]" in world_with_dc:
-                    world = world_with_dc.split("[")[0].strip()
-                    datacenter = world_with_dc.split("[")[1].replace("]", "").strip()
-                else:
-                    world = world_with_dc
-                    datacenter = ""
+                world = world_and_dc
+                datacenter = ""
+                if "[" in world_and_dc and "]" in world_and_dc:
+                    world = world_and_dc.split("[")[0].strip()
+                    datacenter = world_and_dc.split("[")[1].replace("]", "").strip()
 
                 # Credits
                 points_text = clean_text(await row.locator(".points").inner_text())
@@ -132,5 +141,3 @@ async def scrape():
         await browser.close()
 
 asyncio.run(scrape())
-
-
