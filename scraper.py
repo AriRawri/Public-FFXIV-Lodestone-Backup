@@ -16,8 +16,21 @@ async def scrape():
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     async with async_playwright() as p:
+        # Launch Firefox headless
         browser = await p.firefox.launch(headless=True)
-        context = await browser.new_context()
+        context = await browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/114.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 800},
+        )
+
+        # Mask headless detection
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        """)
 
         # Start tracing
         await context.tracing.start(
@@ -39,19 +52,15 @@ async def scrape():
         except:
             print("🍪 No cookie prompt detected")
 
-        # Wait for table (retry once if needed)
+        # Wait for at least one player row
         try:
-            await page.wait_for_selector(".cc-ranking__table", timeout=15000)
+            await page.wait_for_selector(".cc-ranking__table .cc-ranking_result_name", timeout=30000)
+            print("✅ Ranking table detected")
         except:
-            print("⚠️ Table not found, retrying once...")
-            await page.reload()
-            try:
-                await page.wait_for_selector(".cc-ranking__table", timeout=15000)
-            except:
-                print("❌ Table not found after reload. Exiting.")
-                await context.tracing.stop(path="trace.zip")
-                await browser.close()
-                return
+            print("⚠️ Table not found. Saving trace and exiting.")
+            await context.tracing.stop(path="trace.zip")
+            await browser.close()
+            return
 
         # Incremental scrolling until 300 rows
         scroll_increment = 800
@@ -93,7 +102,7 @@ async def scrape():
                 # Name + World combined
                 full_name = clean_text(await row.locator(".name").inner_text())
 
-                # Split into Name (first two words) and World (rest)
+                # Split Name / World
                 parts = full_name.split()
                 if len(parts) >= 2:
                     name = " ".join(parts[:2])
@@ -104,17 +113,17 @@ async def scrape():
 
                 # Credits
                 points_text = clean_text(await row.locator(".points").inner_text())
-                parts = points_text.split()
-                credits = parts[0] if len(parts) > 0 else ""
-                credits_gained = parts[1] if len(parts) > 1 else ""
+                points_parts = points_text.split()
+                credits = points_parts[0] if len(points_parts) > 0 else ""
+                credits_gained = points_parts[1] if len(points_parts) > 1 else ""
 
                 # Victories
                 wins_text = clean_text(await row.locator(".wins").inner_text())
-                parts = wins_text.split()
-                victories = parts[0] if len(parts) > 0 else ""
-                victories_gained = parts[1] if len(parts) > 1 else ""
+                wins_parts = wins_text.split()
+                victories = wins_parts[0] if len(wins_parts) > 0 else ""
+                victories_gained = wins_parts[1] if len(wins_parts) > 1 else ""
 
-                # Remove + symbol if present
+                # Remove + symbols
                 credits_gained = credits_gained.replace("+", "")
                 victories_gained = victories_gained.replace("+", "")
 
@@ -145,9 +154,8 @@ async def scrape():
         else:
             print("⚠️ No data found. CSV not created.")
 
-        # Save trace
+        # Stop tracing
         await context.tracing.stop(path="trace.zip")
         await browser.close()
 
 asyncio.run(scrape())
-
