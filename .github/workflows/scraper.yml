@@ -2,8 +2,8 @@ name: Run Scraper
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # runs daily at 6 AM UTC
-  workflow_dispatch:       # allow manual trigger
+    - cron: "0 6 * * *"   # daily at 6 AM UTC
+  workflow_dispatch:       # allow manual runs
 
 jobs:
   run:
@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install playwright
-          playwright install
+          playwright install --with-deps firefox
 
       - name: Run scraper
         run: python scraper.py
