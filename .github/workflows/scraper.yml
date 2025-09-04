@@ -3,6 +3,7 @@ name: Run Daily Scraper
 on:
   schedule:
     - cron: '0 2 * * *'  # Runs daily at 2:00 AM UTC
+  workflow_dispatch:  # Add this to allow manual triggers
 
 jobs:
   scrape:
