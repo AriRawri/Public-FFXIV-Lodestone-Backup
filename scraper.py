@@ -16,8 +16,20 @@ async def scrape():
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox"])
-        page = await browser.new_page()
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--disable-gpu", "--no-sandbox"]
+        )
+        context = await browser.new_context()
+
+        # Start tracing
+        await context.tracing.start(
+            screenshots=True,
+            snapshots=True,
+            sources=True
+        )
+
+        page = await context.new_page()
         await page.goto(URL)
 
         # Handle cookie prompt
@@ -30,15 +42,19 @@ async def scrape():
         except:
             print("🍪 No cookie prompt detected")
 
-        # Wait for at least one player row to appear
+        # Wait for table (retry once if needed)
         try:
-            await page.wait_for_selector(".cc-ranking__table .cc-ranking_result_name", timeout=30000)
-            print("✅ Ranking table detected")
+            await page.wait_for_selector(".cc-ranking__table", timeout=15000)
         except:
-            print("⚠️ Table not found. Page may have changed or didn't load in time.")
-            await page.screenshot(path="debug_no_table.png")
-            await browser.close()
-            return
+            print("⚠️ Table not found, retrying once...")
+            await page.reload()
+            try:
+                await page.wait_for_selector(".cc-ranking__table", timeout=15000)
+            except:
+                print("❌ Table not found after reload. Exiting.")
+                await context.tracing.stop(path="trace.zip")
+                await browser.close()
+                return
 
         # Incremental scrolling until 300 rows
         scroll_increment = 800
@@ -77,24 +93,17 @@ async def scrape():
             try:
                 rank = clean_text(await row.locator(".order").inner_text())
 
-                # Combined string with name + world
-                full_name_world = clean_text(await row.locator(".name").inner_text())
+                # Name + World combined
+                full_name = clean_text(await row.locator(".name").inner_text())
 
-                # Split into parts for Name and World/Datacenter
-                parts = full_name_world.split()
-                if len(parts) >= 3:
-                    name = " ".join(parts[:2])        # first + last name
-                    world_and_dc = " ".join(parts[2:])  # e.g., "Mateus [Crystal]"
+                # Split into Name (first two words) and World (rest)
+                parts = full_name.split()
+                if len(parts) >= 2:
+                    name = " ".join(parts[:2])
+                    world = " ".join(parts[2:])
                 else:
-                    name = full_name_world
-                    world_and_dc = ""
-
-                # Extract world and datacenter from "World [Datacenter]"
-                world = world_and_dc
-                datacenter = ""
-                if "[" in world_and_dc and "]" in world_and_dc:
-                    world = world_and_dc.split("[")[0].strip()
-                    datacenter = world_and_dc.split("[")[1].replace("]", "").strip()
+                    name = full_name
+                    world = ""
 
                 # Credits
                 points_text = clean_text(await row.locator(".points").inner_text())
@@ -116,7 +125,6 @@ async def scrape():
                     "Rank": rank,
                     "Name": name,
                     "World": world,
-                    "Datacenter": datacenter,
                     "Credits": credits,
                     "Victories": victories,
                     "Credits Gained": credits_gained,
@@ -140,10 +148,8 @@ async def scrape():
         else:
             print("⚠️ No data found. CSV not created.")
 
+        # Save trace
+        await context.tracing.stop(path="trace.zip")
         await browser.close()
 
 asyncio.run(scrape())
-
-
-
-
