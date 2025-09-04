@@ -16,7 +16,7 @@ async def scrape():
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)  # set True for automation
+        browser = await p.chromium.launch(headless=False)  # set True for automation
         page = await browser.new_page()
         await page.goto(URL)
 
@@ -142,3 +142,4 @@ async def scrape():
         await browser.close()
 
 asyncio.run(scrape())
+
