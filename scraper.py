@@ -32,7 +32,8 @@ async def scrape():
 
         # Wait for table
         try:
-            await page.wait_for_selector(".cc-ranking__table", timeout=10000)
+            await page.wait_for_selector(".cc-ranking__table", timeout=30000)  # 30 seconds
+
         except:
             print("⚠️ Table not found. Page may have changed.")
             await browser.close()
@@ -141,4 +142,5 @@ async def scrape():
         await browser.close()
 
 asyncio.run(scrape())
+
 
