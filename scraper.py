@@ -30,12 +30,13 @@ async def scrape():
         except:
             print("🍪 No cookie prompt detected")
 
-        # Wait for table
+        # Wait for at least one player row to appear
         try:
-            await page.wait_for_selector(".cc-ranking__table", timeout=30000)  # 30 seconds
-
+            await page.wait_for_selector(".cc-ranking__table .cc-ranking_result_name", timeout=30000)
+            print("✅ Ranking table detected")
         except:
-            print("⚠️ Table not found. Page may have changed.")
+            print("⚠️ Table not found. Page may have changed or didn't load in time.")
+            await page.screenshot(path="debug_no_table.png")
             await browser.close()
             return
 
@@ -142,6 +143,7 @@ async def scrape():
         await browser.close()
 
 asyncio.run(scrape())
+
 
 
 
