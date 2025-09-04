@@ -25,11 +25,15 @@ jobs:
       - name: Run scraper
         run: python scraper.py
 
-      - name: Upload CSV results
-        uses: actions/upload-artifact@v4
+      - name: Commit and push new CSV file
+        uses: stefanzweibrot/git-auto-commit-action@v5
         with:
-          name: crystalline-results
-          path: scraped_data/*.csv
+          commit_message: "Automated: Update FFXIV rankings"
+          add_options: "--all"
+          file_pattern: "scraped_data/*.csv" # Commits any CSV file in the scraped_data directory
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
+          commit_author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
 
       - name: Upload Playwright trace
         uses: actions/upload-artifact@v4
