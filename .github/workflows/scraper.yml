@@ -1,10 +1,6 @@
 name: Run Scraper
-
 on:
-  schedule:
-    - cron: "30 15 * * *"
   workflow_dispatch:
-
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -12,7 +8,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: All  # Ensures we are on the correct branch
+          ref: All
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,25 +17,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          # This command installs the browser AND the correct system libs for the OS
+          pip install playwright==1.42.0 greenlet==3.0.3
           python -m playwright install --with-deps firefox
 
       - name: Run scraper
         run: python scraper.py
 
-      # DEBUG STEP: This will show up in your GitHub logs
-      - name: Debug - List created files
-        run: |
-          echo "Checking for created directories and files..."
-          ls -R scraped_data*
+      - name: List files (For Debugging)
+        run: ls -R scraped_data*
 
-      - name: Commit and push new CSV files
+      - name: Commit and push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          branch: All  # Explicitly push back to your 'All' branch
-          commit_message: "Automated: Update FFXIV rankings (All Regions)"
-          add_options: "--all"
-          file_pattern: "scraped_data*/**/*.csv"
-          commit_user_name: "GitHub Actions"
-          commit_user_email: "actions@github.com"
+          branch: All
+          commit_message: "Update FFXIV rankings"
+          file_pattern: "scraped_data*/*.csv"
