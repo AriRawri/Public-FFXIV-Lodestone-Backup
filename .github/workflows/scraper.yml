@@ -1,6 +1,10 @@
 name: Run Scraper
+
 on:
+  schedule:
+    - cron: "30 15 * * *"
   workflow_dispatch:
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -18,17 +22,23 @@ jobs:
       - name: Install dependencies
         run: |
           pip install playwright==1.42.0 greenlet==3.0.3
+          # This specific command handles the libasound2t64 mapping on Ubuntu 24.04
           python -m playwright install --with-deps firefox
 
       - name: Run scraper
         run: python scraper.py
 
-      - name: List files (For Debugging)
-        run: ls -R scraped_data*
+      - name: Debug - List Files
+        run: |
+          echo "Current directory structure:"
+          ls -R scraped_data* || echo "No scraped_data folders found"
 
       - name: Commit and push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           branch: All
-          commit_message: "Update FFXIV rankings"
+          commit_message: "Automated: Update FFXIV rankings (All Regions)"
+          # This pattern ensures all regional folders are captured
           file_pattern: "scraped_data*/*.csv"
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
