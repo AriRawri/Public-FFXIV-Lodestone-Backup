@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: All  # Ensures we are on the correct branch
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -19,18 +21,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install playwright
+          pip install playwright==1.42.0 greenlet==3.0.3
           playwright install --with-deps firefox
 
       - name: Run scraper
         run: python scraper.py
 
+      # DEBUG STEP: This will show up in your GitHub logs
+      - name: Debug - List created files
+        run: |
+          echo "Checking for created directories and files..."
+          ls -R scraped_data*
+
       - name: Commit and push new CSV files
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
+          branch: All  # Explicitly push back to your 'All' branch
           commit_message: "Automated: Update FFXIV rankings (All Regions)"
           add_options: "--all"
-          # Updated pattern to include all folders starting with 'scraped_data'
-          file_pattern: "scraped_data*/**/*.csv" 
+          file_pattern: "scraped_data*/**/*.csv"
           commit_user_name: "GitHub Actions"
           commit_user_email: "actions@github.com"
