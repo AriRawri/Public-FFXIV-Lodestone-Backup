@@ -8,6 +8,8 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      TZ: 'America/Los_Angeles' # Replace with your timezone (e.g., 'America/New_York')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
