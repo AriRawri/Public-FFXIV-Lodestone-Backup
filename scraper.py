@@ -4,165 +4,109 @@ import os
 from datetime import datetime
 from playwright.async_api import async_playwright
 
-URL = "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Dynamis"
-DATA_FOLDER = "scraped_data"
-TOTAL_PLAYERS = 300  # stop scrolling once we reach this number
+# Region Configuration
+REGIONS = [
+    {"name": "na", "url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Dynamis", "folder": "scraped_data"},
+    {"name": "eu", "url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Light", "folder": "scraped_data_eu"},
+    {"name": "jp", "url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Elemental", "folder": "scraped_data_jp"},
+    {"name": "oc", "url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Materia", "folder": "scraped_data_oc"}
+]
+
+TOTAL_PLAYERS = 300 
 
 def clean_text(text: str) -> str:
-    """Remove newlines and extra spaces to make CSV safe."""
-    return " ".join(text.split())
+    return " ".join(text.split()) if text else ""
 
 async def scrape():
-    os.makedirs(DATA_FOLDER, exist_ok=True)
-
     async with async_playwright() as p:
-        # Launch Firefox headless
+        # Using Firefox as per your original script
         browser = await p.firefox.launch(headless=True)
+        
+        # New context for each run to keep it clean
         context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/114.0.0.0 Safari/537.36"
-            ),
-            viewport={"width": 1280, "height": 800},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800}
         )
 
-        # Mask headless detection
-        await context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-        """)
-
-        # Start tracing
-        await context.tracing.start(
-            screenshots=True,
-            snapshots=True,
-            sources=True
-        )
-
-        page = await context.new_page()
-        await page.goto(URL)
-        await page.wait_for_timeout(2000)  # give JS time to render
-
-        # Handle cookie prompt
-        try:
-            accept_btn = page.locator("button:has-text('Accept')")
-            if await accept_btn.count() > 0:
-                await accept_btn.click()
-                print("🍪 Cookie consent accepted")
-                await page.wait_for_timeout(500)
-        except:
-            print("🍪 No cookie prompt detected")
-
-        # Wait for the table container first
-        try:
-            await page.wait_for_selector(".cc-ranking__table", timeout=45000)
-            # small scroll to trigger lazy loading
-            await page.evaluate("window.scrollBy(0, 100);")
-            # wait until at least one row exists
-            await page.wait_for_function("""
-            () => document.querySelectorAll('.cc-ranking__table > div').length > 0
-            """, timeout=45000)
-            print("✅ Ranking table detected")
-        except:
-            print("⚠️ Table not found. Saving trace and exiting.")
-            await context.tracing.stop(path="trace.zip")
-            await browser.close()
-            return
-
-        # Incremental scrolling until 300 rows
-        scroll_increment = 800
-        max_scroll_attempts = 50
-        scroll_attempt = 0
-        curr_rows = 0
-
-        while scroll_attempt < max_scroll_attempts:
-            await page.evaluate(f"window.scrollBy(0, {scroll_increment});")
-            await page.wait_for_timeout(700)
-
-            # Optional: Show More button
+        for region in REGIONS:
+            print(f"🌐 Scraping Region: {region['name'].upper()}")
+            os.makedirs(region['folder'], exist_ok=True)
+            
+            page = await context.new_page()
             try:
-                show_more = page.locator("button:has-text('Show More')")
-                if await show_more.count() > 0:
-                    await show_more.click()
-                    await page.wait_for_timeout(500)
-            except:
-                pass
+                await page.goto(region['url'], wait_until="load", timeout=60000)
+                await page.wait_for_timeout(2000)
 
-            curr_rows = await page.locator(".cc-ranking__table > div").count()
-            print(f"Scrolling... rows detected: {curr_rows}")
+                # Cookie Consent
+                try:
+                    btn = page.locator("button:has-text('Accept')")
+                    if await btn.count() > 0:
+                        await btn.click()
+                except:
+                    pass
 
-            if curr_rows >= TOTAL_PLAYERS:
-                print("✅ All 300 players detected")
-                await page.wait_for_timeout(1500)
-                break
+                # Wait for table
+                await page.wait_for_selector(".cc-ranking__table", timeout=30000)
 
-            scroll_attempt += 1
+                # Scrolling (Matches your original working logic)
+                for _ in range(40):
+                    await page.evaluate("window.scrollBy(0, 1000);")
+                    await page.wait_for_timeout(700)
+                    
+                    try:
+                        show_more = page.locator("button:has-text('Show More')")
+                        if await show_more.count() > 0:
+                            await show_more.click()
+                    except:
+                        pass
 
-        # Scrape all rows
-        rows = await page.locator(".cc-ranking__table > div").all()
-        data = []
+                    count = await page.locator(".cc-ranking__table > div").count()
+                    if count >= TOTAL_PLAYERS:
+                        break
 
-        for row in rows:
-            try:
-                rank = clean_text(await row.locator(".order").inner_text())
+                # Extraction
+                rows = await page.locator(".cc-ranking__table > div").all()
+                data = []
+                for row in rows:
+                    try:
+                        rank = await row.locator(".order").inner_text()
+                        full_name = await row.locator(".name").inner_text()
+                        points = await row.locator(".points").inner_text()
+                        wins = await row.locator(".wins").inner_text()
 
-                # Name + World combined
-                full_name = clean_text(await row.locator(".name").inner_text())
+                        # Split name and world
+                        parts = full_name.split()
+                        name = " ".join(parts[:2]) if len(parts) >= 2 else full_name
+                        world = " ".join(parts[2:]) if len(parts) >= 2 else ""
 
-                # Split Name / World
-                parts = full_name.split()
-                if len(parts) >= 2:
-                    name = " ".join(parts[:2])
-                    world = " ".join(parts[2:])
+                        data.append({
+                            "Rank": clean_text(rank),
+                            "Name": clean_text(name),
+                            "World": clean_text(world),
+                            "Credits": clean_text(points).split()[0] if points else "0",
+                            "Victories": clean_text(wins).split()[0] if wins else "0"
+                        })
+                    except:
+                        continue
+
+                # Save CSV
+                if data:
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                    filename = os.path.join(region['folder'], f"rankings_{region['name']}_{date_str}.csv")
+                    with open(filename, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.DictWriter(f, fieldnames=data[0].keys())
+                        writer.writeheader()
+                        writer.writerows(data)
+                    print(f"✅ Created {filename} with {len(data)} rows.")
                 else:
-                    name = full_name
-                    world = ""
-
-                # Credits
-                points_text = clean_text(await row.locator(".points").inner_text())
-                points_parts = points_text.split()
-                credits = points_parts[0] if len(points_parts) > 0 else ""
-                credits_gained = points_parts[1] if len(points_parts) > 1 else ""
-
-                # Victories
-                wins_text = clean_text(await row.locator(".wins").inner_text())
-                wins_parts = wins_text.split()
-                victories = wins_parts[0] if len(wins_parts) > 0 else ""
-                victories_gained = wins_parts[1] if len(wins_parts) > 1 else ""
-
-                # Remove + symbols
-                credits_gained = credits_gained.replace("+", "")
-                victories_gained = victories_gained.replace("+", "")
-
-                data.append({
-                    "Rank": rank,
-                    "Name": name,
-                    "World": world,
-                    "Credits": credits,
-                    "Victories": victories,
-                    "Credits Gained": credits_gained,
-                    "Victories Gained": victories_gained
-                })
+                    print(f"❌ No data found for {region['name']}")
 
             except Exception as e:
-                print(f"⚠️ Skipping a row due to error: {e}")
-                continue
+                print(f"⚠️ Error in {region['name']}: {e}")
+            finally:
+                await page.close()
 
-        # Save CSV
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        filename = os.path.join(DATA_FOLDER, f"crystalline_conflict_rankings_{date_str}.csv")
-
-        if data:
-            with open(filename, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=data[0].keys())
-                writer.writeheader()
-                writer.writerows(data)
-            print(f"✅ Scraped {len(data)} players. Saved to {filename}")
-        else:
-            print("⚠️ No data found. CSV not created.")
-
-        # Stop tracing
-        await context.tracing.stop(path="trace.zip")
         await browser.close()
 
-asyncio.run(scrape())
+if __name__ == "__main__":
+    asyncio.run(scrape())
