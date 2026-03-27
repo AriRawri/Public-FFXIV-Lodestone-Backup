@@ -2,8 +2,8 @@ name: Run Scraper
 
 on:
   schedule:
-    - cron: "30 15 * * *"   # Runs at 7:30 PST/8:30 PDT/ 15:30 UTC
-  workflow_dispatch:       # allow manual runs
+    - cron: "30 00 * * *"
+  workflow_dispatch:
 
 jobs:
   run:
@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: All
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -19,24 +21,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install playwright
-          playwright install --with-deps firefox
+          pip install playwright==1.58.0 greenlet==3.3.1
+          # This specific command handles the libasound2t64 mapping on Ubuntu 24.04
+          python -m playwright install --with-deps firefox
 
       - name: Run scraper
         run: python scraper.py
 
-      - name: Commit and push new CSV file
+      - name: Debug - List Files
+        run: |
+          echo "Current directory structure:"
+          ls -R scraped_data* || echo "No scraped_data folders found"
+
+      - name: Commit and push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Automated: Update FFXIV rankings"
-          add_options: "--all"
-          file_pattern: "scraped_data/*.csv" # Commits any CSV file in the scraped_data directory
+          branch: All
+          commit_message: "Automated: Update FFXIV rankings (All Regions)"
+          # This pattern ensures all regional folders are captured
+          file_pattern: "scraped_data*/*.csv"
           commit_user_name: "GitHub Actions"
           commit_user_email: "actions@github.com"
-          commit_author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
-
-      - name: Upload Playwright trace
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-trace
-          path: trace.zip
