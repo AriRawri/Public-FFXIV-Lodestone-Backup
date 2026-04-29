@@ -11,8 +11,8 @@ LOCAL_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
 
 REGIONS = [
     {"url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Dynamis", "folder": "scraped_data"},
-    {"url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Light", "folder": "scraped_data_eu"},
-    {"url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Elemental", "folder": "scraped_data_jp"},
+    {"url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Chaos", "folder": "scraped_data_eu"},
+    {"url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Meteor", "folder": "scraped_data_jp"},
     {"url": "https://na.finalfantasyxiv.com/lodestone/ranking/crystallineconflict/?dcgroup=Materia", "folder": "scraped_data_oc"}
 ]
 TOTAL_PLAYERS = 300 
