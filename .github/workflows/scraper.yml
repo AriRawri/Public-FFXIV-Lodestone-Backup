@@ -1,46 +1,82 @@
-# Manual kickstart - [Current Time]
 name: Run Scraper
 
 on:
   schedule:
+    # GitHub cron schedules always use UTC.
+    # 12:13 UTC = 4:13 AM PST or 5:13 AM PDT.
     - cron: "13 12 * * *"
+
   workflow_dispatch:
+
+# Required so the workflow can commit CSV files back to the repository.
+permissions:
+  contents: write
+
+# Prevent two scraper executions from pushing at the same time.
+concurrency:
+  group: ffxiv-ranking-scraper
+  cancel-in-progress: false
 
 jobs:
   run:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     env:
-      TZ: 'America/Los_Angeles' # Replace with your timezone (e.g., 'America/New_York')
+      TZ: America/Los_Angeles
+      PYTHONUNBUFFERED: "1"
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.10'
+          python-version: "3.10"
+          cache: pip
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
-          pip install playwright==1.58.0 greenlet==3.3.1
-          # This specific command handles the libasound2t64 mapping on Ubuntu 24.04
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
           python -m playwright install --with-deps firefox
 
-      - name: Run scraper
-        run: python scraper.py
-
-      - name: Debug - List Files
+      - name: Validate scraper syntax
         run: |
-          echo "Current directory structure:"
-          ls -R scraped_data* || echo "No scraped_data folders found"
+          python -m py_compile scraper.py
 
-      - name: Commit and push
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Run scraper
+        run: |
+          python scraper.py
+
+      - name: List generated CSV files
+        if: always()
+        run: |
+          echo "Generated files:"
+          find . \
+            -maxdepth 3 \
+            -type f \
+            -path "./scraped_data*/*.csv" \
+            -print || true
+
+      - name: Upload scraper debug files
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: scraper-debug-files
+          path: |
+            scraper_debug_*.png
+            scraper_debug_*.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Commit and push CSV files
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "Automated: Update FFXIV rankings (All Regions)"
-          # This pattern ensures all regional folders are captured
           file_pattern: "scraped_data*/*.csv"
           commit_user_name: "GitHub Actions"
-          commit_user_email: "actions@github.com"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
